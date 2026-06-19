@@ -1,0 +1,38 @@
+# === Compiler & Build Output ===
+*.o
+*.obj
+*.elf
+*.hex
+*.eep
+*.lss
+*.map
+*.sym
+*.lst
+*.d
+dep/
+
+# === IDE Configurations ===
+# Atmel Studio / Microchip Studio
+.atmelstart/
+*.atsln
+*.atdf
+*.componentinfo
+*.componentproperties
+Debug/
+Release/
+
+# VS Code
+.vscode/
+
+# CLion / CMake
+.idea/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# === System & Backup Files ===
+.DS_Store
+Thumbs.db
+*.bak
+*~
+
