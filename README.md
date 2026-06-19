@@ -1,5 +1,7 @@
 # Landing Gear Sequencer
 
+![DIY landing gear sequencer](images/sequencer.jpg)
+
 ## Background
 I acquired an e-Flite F-16 80mm and in the course of setting up and bench testing everything I found 
 that the landing gear was unreliable.  Rarely would all 3 units actuate.  Most of the time only 2 units 
@@ -89,6 +91,14 @@ Building is done using a typical `Makefile`.
 Executing `make` will generate the sequencer.hex file in the root of the project. 
 
 #### Flashing
+Once you have built the code, you can upload the code to your target board using `make upload`.  Since your environment will differ from mine, you'll
+need to modify the Makefile so that it can find the correct serial port.  At the top of `Makefile` you'll find a configuration like:
+
+`PORT = /dev/cu.usbserial-AD02668J`
+
+If you're on a linux like system try executing `ls -l /dev/usb*` - most of the time there will only be one result and you can replace `/dev/cu.usbserial-AD02668J` with the output from your system.  If you're on Windows you can use Device Manager is see which COM port appears / disappears when you plug in / unplug the FTDI device.
+
+Once you have made this change, you should be able to just use `make upload` from then on.
 
 ### Hardware
 I have used the Arduino Pro Mini, but you could probably adapt the design to run on a different ATmega 328P device fairly easily, or if you adapt the code to a different architecture.
@@ -101,8 +111,10 @@ I have used the Arduino Pro Mini, but you could probably adapt the design to run
 - Servo leads for the RX input and the 4 outputs (I'm using a terminal block to connect the outputs, so I used all female connectors, but you could also use a female connector for the input and male connectors for the 4 outputs)
 - An IN4001 diode to drop the 6V BEC voltage down to ~5.3V
 - Heat shrink tubing in various sizes or insulated crimp connectors
+- [Optional] Small cable wraps
 - Solder and flux
 - Labels (either a label maker or pre-made labels)
+- [Optional] A 6 position Dupont connector housing and 2 female terminals. (This can be used as a protective cover for the programming header when installed in an aircraft)
 
 #### Steps
 1. For the servo leads you can either build your own or buy pre-made leads.
@@ -114,6 +126,12 @@ of the Arduino.
 1. Solder the output signals to pins D3, D5, D9, and D10 on the Arduino and mark the connectors appropriately.
 1. Solder the positive pigtail to the anode of the diode.
 1. Solder the negative pigtail to the ground pin on the Arduino.
+1. Shrink wrap or cable tie the wiring to keep everying neat and tidy.
+1. [Optional] Create a protective cover for the programming header from a 6 position housing and 2 spare female terminals.
+
+![Completed Sequencer](images/sequencer.jpg)
+![Closeup of voltage drop diode](images/diode_closeup.jpg)
+![Programming header cover](images/header_cover.jpg)
 
 ## Support
 If you find this project useful and you want to support my work, please consider [buying me a cup of coffee](buymeacoffee.com/sceaj).  Thank you.
