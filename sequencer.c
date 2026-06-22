@@ -32,6 +32,8 @@ typedef enum {
     CH_LEFT,
     CH_RIGHT,
     CH_NOSE,
+    CH_SERVO_COUNT,
+    CH_LANDING_LIGHTS,
     CH_COUNT
 } servo_channel_t;
 
@@ -70,9 +72,9 @@ typedef enum {
 
 /* Tunable per-channel slew-rate limits (microseconds per millisecond). */
 #define DOOR_SLEW_US_PER_MS 1U
-#define LEFT_SLEW_US_PER_MS 10U
-#define RIGHT_SLEW_US_PER_MS 10U
-#define NOSE_SLEW_US_PER_MS 10U
+#define LEFT_SLEW_US_PER_MS 20U
+#define RIGHT_SLEW_US_PER_MS 20U
+#define NOSE_SLEW_US_PER_MS 20U
 
 /* Tunable startup-neutral outputs for invalid/none stored command state. */
 #define STARTUP_DOOR_US DOOR_OPEN_US
@@ -84,7 +86,7 @@ typedef enum {
 #define SERVO_MIN_US 500U
 #define SERVO_MAX_US 2500U
 
-static const uint16_t k_servo_slew_us_per_ms[CH_COUNT] = {
+static const uint16_t k_servo_slew_us_per_ms[CH_SERVO_COUNT] = {
     DOOR_SLEW_US_PER_MS,
     LEFT_SLEW_US_PER_MS,
     RIGHT_SLEW_US_PER_MS,
@@ -99,21 +101,21 @@ static volatile uint32_t ms_ticks = 0;
 static volatile uint8_t pulse_sample_ready = 0;
 static uint8_t outputs_enabled = 0; /* Phase 5: Gate pulse generation until first command. */
 
-static volatile uint16_t servo_target_us[CH_COUNT] = {
+static volatile uint16_t servo_target_us[CH_SERVO_COUNT] = {
     STARTUP_DOOR_US,
     STARTUP_LEFT_US,
     STARTUP_RIGHT_US,
     STARTUP_NOSE_US
 };
 
-static volatile uint16_t servo_pulse_ticks_10us[CH_COUNT] = {
+static volatile uint16_t servo_pulse_ticks_10us[CH_SERVO_COUNT] = {
     STARTUP_DOOR_US / 10U,
     STARTUP_LEFT_US / 10U,
     STARTUP_RIGHT_US / 10U,
     STARTUP_NOSE_US / 10U
 };
 
-static uint16_t servo_current_us[CH_COUNT] = {
+static uint16_t servo_current_us[CH_SERVO_COUNT] = {
     STARTUP_DOOR_US,
     STARTUP_LEFT_US,
     STARTUP_RIGHT_US,
@@ -153,11 +155,13 @@ static const sequence_step_t k_lower_sequence[] = {
     {0U, CH_DOOR, DOOR_OPEN_US},
     {1200U, CH_LEFT, LEFT_DOWN_US},
     {2200U, CH_RIGHT, RIGHT_DOWN_US},
-    {3200U, CH_NOSE, NOSE_DOWN_US}
+    {3200U, CH_NOSE, NOSE_DOWN_US},
+    {6000U, CH_LANDING_LIGHTS, 1U} /* Turn on landing lights after 6 seconds. */
 };
 
 static const sequence_step_t k_raise_sequence[] = {
     {0U, CH_LEFT, LEFT_UP_US},
+    {10U, CH_LANDING_LIGHTS, 0U}, /* Turn off landing lights early in raising sequence. */
     {1000U, CH_RIGHT, RIGHT_UP_US},
     {2000U, CH_NOSE, NOSE_UP_US},
     {7000U, CH_DOOR, DOOR_CLOSE_US}
@@ -218,6 +222,7 @@ static void timer1_input_capture_init(void) {
     TIMSK1 = (1 << ICIE1);
 }
 
+/* Ensure pulses are within valid range */
 static uint16_t clamp_servo_us(uint16_t pulse_us) {
     if (pulse_us < SERVO_MIN_US) {
         return SERVO_MIN_US;
@@ -228,6 +233,7 @@ static uint16_t clamp_servo_us(uint16_t pulse_us) {
     return pulse_us;
 }
 
+/* Convert microseconds to 10us ticks and ensure within valid range */
 static uint16_t us_to_ticks_10us(uint16_t pulse_us) {
     uint16_t ticks = (uint16_t)((pulse_us + 5U) / 10U);
 
@@ -361,10 +367,23 @@ static void status_led_update_1ms(void) {
     led_phase = LED_PHASE_IDLE;
 }
 
+static void landing_lights_init(void) {
+    DDRD |= (1 << DDD4); // D4 as output for landing lights
+    PORTD &= (uint8_t)~(1 << PORTD4); // Start with landing lights off
+}
+
+static void landing_lights_set(uint8_t on) {
+    if (on) {
+        PORTD |= (1 << PORTD4);
+    } else {
+        PORTD &= (uint8_t)~(1 << PORTD4);
+    }
+}
+
 static void set_servo_target(servo_channel_t channel, uint16_t pulse_us) {
     uint16_t clamped = clamp_servo_us(pulse_us);
 
-    if ((uint8_t)channel >= CH_COUNT) {
+    if ((uint8_t)channel >= CH_SERVO_COUNT) {
         return;
     }
 
@@ -374,17 +393,17 @@ static void set_servo_target(servo_channel_t channel, uint16_t pulse_us) {
 }
 
 static void servo_update_1ms(void) {
-    uint16_t target_snapshot[CH_COUNT];
-    uint16_t ticks_snapshot[CH_COUNT];
+    uint16_t target_snapshot[CH_SERVO_COUNT];
+    uint16_t ticks_snapshot[CH_SERVO_COUNT];
     uint8_t i;
 
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        for (i = 0; i < CH_COUNT; i++) {
+        for (i = 0; i < CH_SERVO_COUNT; i++) {
             target_snapshot[i] = servo_target_us[i];
         }
     }
 
-    for (i = 0; i < CH_COUNT; i++) {
+    for (i = 0; i < CH_SERVO_COUNT; i++) {
         uint16_t current = servo_current_us[i];
         uint16_t target = clamp_servo_us(target_snapshot[i]);
         uint16_t step = k_servo_slew_us_per_ms[i];
@@ -412,7 +431,7 @@ static void servo_update_1ms(void) {
     }
 
     ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-        for (i = 0; i < CH_COUNT; i++) {
+        for (i = 0; i < CH_SERVO_COUNT; i++) {
             servo_pulse_ticks_10us[i] = ticks_snapshot[i];
         }
     }
@@ -452,7 +471,11 @@ static void process_sequence(uint32_t now_ms) {
             break;
         }
 
-        set_servo_target(step->channel, step->pulse_us);
+        if (step->channel < CH_SERVO_COUNT) {
+            set_servo_target(step->channel, step->pulse_us);
+        } else if (step->channel == CH_LANDING_LIGHTS) {
+            landing_lights_set((uint8_t)step->pulse_us);
+        }
         sequence_rt.next_step_idx++;
     }
 
@@ -585,15 +608,16 @@ ISR(TIMER2_COMPA_vect) {
 }
 
 int main(void) {
-    gear_command_t latched_zone = CMD_NONE;
+    gear_command_t latched_cmd = CMD_NONE;
     uint32_t last_servo_update_ms = 0;
-    uint8_t input_zone_initialized = 0;
+    uint8_t input_cmd_initialized = 0;
 #if ENABLE_UART_LOGGING && ENABLE_DIAGNOSTICS
-    gear_command_t last_decoded_zone = CMD_NONE;
+    gear_command_t last_decoded_cmd = CMD_NONE;
 #endif
 
     uart_init();
     servo_io_init();
+    landing_lights_init();
     status_led_init();
     timer0_init_1khz();
     timer1_input_capture_init();
@@ -636,32 +660,32 @@ int main(void) {
         }
 
         if (sample_ready_snapshot) {
-            gear_command_t zone = decode_command_from_pulse_us(pulse_us_snapshot);
+            gear_command_t command = decode_command_from_pulse_us(pulse_us_snapshot);
 #if ENABLE_UART_LOGGING && ENABLE_DIAGNOSTICS
-            last_decoded_zone = zone;
+            last_decoded_cmd = command;
 #endif
 
-            /* Startup behavior: baseline the first valid zone without enabling outputs. */
-            if (!input_zone_initialized) {
-                latched_zone = zone;
-                input_zone_initialized = 1;
-                LOGF("input_baseline zone=%u pulse_us=%u\n", (unsigned)zone, (unsigned)pulse_us_snapshot);
+            /* Startup behavior: baseline the first valid command without enabling outputs. */
+            if (!input_cmd_initialized) {
+                latched_cmd = command;
+                input_cmd_initialized = 1;
+                LOGF("input_baseline command=%u pulse_us=%u\n", (unsigned)command, (unsigned)pulse_us_snapshot);
                 continue;
             }
 
-            if (zone == CMD_NONE) {
-                latched_zone = CMD_NONE;
-            } else if (zone != latched_zone) {
-                latched_zone = zone;
-                outputs_enabled = 1; /* Phase 5: Enable pulse generation on first command. */
-                start_sequence(zone, now_ms);
-                status_led_enqueue((zone == CMD_LOWER) ? LED_CODE_LOWER_CMD : LED_CODE_RAISE_CMD);
-                LOGF("command_transition=%u pulse_us=%u outputs_enabled\n", (unsigned)zone, (unsigned)pulse_us_snapshot);
+            if (command == CMD_NONE) {
+                latched_cmd = CMD_NONE;
+            } else if (command != latched_cmd) {
+                latched_cmd = command;
+                outputs_enabled = 1; /* Enable pulse generation on first command. */
+                start_sequence(command, now_ms);
+                status_led_enqueue((command == CMD_LOWER) ? LED_CODE_LOWER_CMD : LED_CODE_RAISE_CMD);
+                LOGF("command_transition=%u pulse_us=%u outputs_enabled\n", (unsigned)command, (unsigned)pulse_us_snapshot);
             }
         }
 
 #if ENABLE_UART_LOGGING && ENABLE_DIAGNOSTICS
-        emit_diagnostics(now_ms, pulse_us_snapshot, last_decoded_zone);
+        emit_diagnostics(now_ms, pulse_us_snapshot, last_decoded_cmd);
 #endif
     }
 }
