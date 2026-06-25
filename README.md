@@ -4,8 +4,8 @@
 
 ## Change Log
 | Version | Description |
-| v1.0    | Basic support for operating 3 gear and doors.  Doors operate simultaneously, but gears are staged so that each gear actuation starts up independently (avoid a large current spike which can fool the gears over-current protection).
-| v1.1.   | Added support for landing light operation from the Arduino.
+| v1.0    | Basic support for operating 3 gear and doors.  Doors operate simultaneously, but gears are staged so that each gear actuation starts up independently (avoid a large current spike which can fool the gears over-current protection). |
+| v1.1.   | Added support for landing light operation from the Arduino. |
 
 ## Background
 I acquired an e-Flite F-16 80mm and in the course of setting up and bench testing everything I found 
