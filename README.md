@@ -7,7 +7,7 @@
 | Version | Description |
 | ------- | ----------- |
 | v1.0    | Basic support for operating 3 gear and doors.  Doors operate simultaneously, but gears are staged so that each gear actuation starts up independently (avoid a large current spike which can fool the gears over-current protection). |
-| v1.1.   | Added support for landing light operation from the Arduino. |
+| v1.1   | Added support for landing light operation from the Arduino. |
 
 ## Background
 I acquired an e-Flite F-16 80mm and in the course of setting up and bench testing everything I found 
@@ -17,7 +17,7 @@ worked reliably.  Research indicated that given all gears worked individually, b
 together, that the most likely cause was over-current protection preventing the gear from actuating because
 it perceived that the motor might be stalled and this prevents the motor from burning out. Since the gear 
 operate reliably independently, the idea is to separate the startup current surges so that they don't occur
-simultaneously.  So far, it appears that this strategy does in deed work.
+simultaneously.  So far, it appears that this strategy does indeed work.
 
 Since some users report that the retracts in their models operate reliably, even when actuating simultaneously,
 I am assuming that there might be manufacturing tolerances in the over-current circuits that make some units
